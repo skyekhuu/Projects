@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sticky Web</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Mono:wght@300;400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #111;
+    font-family: 'DM Mono', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+  }
+
+  /* TOOLBAR */
+  #toolbar {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 999px;
+    padding: 8px 12px;
+    z-index: 1000;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+
+  .tb-btn {
+    background: transparent;
+    border: 1px solid #3a3a3a;
+    color: #ccc;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: #2a2a2a; border-color: #555; color: #fff; }
+  .tb-btn.primary {
+    background: #f0f0f0;
+    color: #111;
+    border-color: #f0f0f0;
+    font-weight: 600;
+  }
+  .tb-btn.primary:hover { background: #fff; }
+
+  #zoom-display {
+    color: #888;
+    font-size: 12px;
+    padding: 0 6px;
+    min-width: 38px;
+    text-align: center;
+  }
+
+  .tb-sep { width: 1px; height: 20px; background: #333; margin: 0 2px; }
+
+  /* CANVAS */
+  #canvas-wrap {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 4000px;
+    height: 4000px;
+    transform-origin: 0 0;
+  }
+
+  /* SVG LINES */
+  #svg-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 4000px;
+    height: 4000px;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .connection-line {
+    stroke: #555;
+    stroke-width: 1.5;
+    fill: none;
+    stroke-linecap: round;
+  }
+
+  .draft-line {
+    stroke: #3b82f6;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-dasharray: 6 4;
+    pointer-events: none;
+  }
+
+  body.connect-mode .note {
+    cursor: crosshair;
+  }
+  body.connect-mode .note *,
+  body.connect-mode .note:hover * {
+    cursor: crosshair !important;
+  }
+  body.connect-mode .note:hover {
+    cursor: crosshair !important;
+    box-shadow: 0 0 0 2.5px #3b82f6, 0 4px 28px rgba(59,130,246,0.25);
+  }
+  body.connect-mode .note.connect-source {
+    box-shadow: 0 0 0 2.5px #3b82f6, 0 4px 28px rgba(59,130,246,0.4);
+  }
+  .tb-btn.active {
+    background: #3b82f6;
+    color: #fff;
+    border-color: #3b82f6;
+  }
+  .tb-btn.active:hover { background: #2563eb; border-color: #2563eb; }
+
+  /* NOTES */
+  .note {
+    position: absolute;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.35);
+    min-width: 200px;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: box-shadow 0.15s;
+  }
+  .note:hover { box-shadow: 0 4px 28px rgba(0,0,0,0.5); }
+  .note.minimized { min-height: unset; }
+
+  .note-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 8px 6px 12px;
+    gap: 2px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+  }
+
+  .note-title {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    font-weight: 700;
+    color: #111;
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    cursor: text;
+  }
+  .note-title::placeholder {
+    color: #aaa;
+    font-style: italic;
+    font-weight: 400;
+  }
+  .note-title.is-placeholder {
+    color: #aaa;
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .drag-handle {
+    cursor: grab;
+    color: #bbb;
+    display: grid;
+    grid-template-columns: repeat(3, 4px);
+    grid-template-rows: repeat(3, 4px);
+    gap: 2px;
+    padding: 2px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.15s;
+  }
+  .drag-handle:hover { color: #888; }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-handle span {
+    width: 3px; height: 3px;
+    background: currentColor;
+    border-radius: 50%;
+    display: block;
+  }
+
+  .note-btn {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    padding: 2px 3px;
+    font-size: 13px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+  .note-btn:hover { color: #333; }
+  .note-btn.close-btn:hover { color: #e33; }
+
+  .note-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .note.minimized .note-body { display: none; }
+  .note.hidden { display: none !important; }
+
+  .note-lines {
+    flex: 1;
+    padding: 10px 14px;
+    overflow: hidden;
+  }
+
+  .note-textarea {
+    width: 100%;
+    height: 100%;
+    min-height: 80px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'Caveat', cursive;
+    font-size: 16px;
+    color: #444;
+    background: transparent;
+    line-height: 1.8;
+    background-image: repeating-linear-gradient(
+      transparent,
+      transparent calc(1.8em - 1px),
+      #e8e8e8 calc(1.8em - 1px),
+      #e8e8e8 1.8em
+    );
+  }
+  .note-textarea::placeholder { color: #bbb; font-style: italic; }
+
+  .note-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 6px 0px 0px 10px;
+    flex-shrink: 0;
+  }
+
+  .note-actions {
+    display: flex;
+    gap: 4px;
+    padding-bottom: 8px;
+  }
+
+  .arrow-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2.5px solid #222;
+    background: transparent;
+    color: #222;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all 0.15s;
+  }
+  .arrow-btn:hover { background: #111; color: #fff; border-color: #111; }
+
+  .resize-handle {
+    width: 28px;
+    height: 28px;
+    cursor: se-resize;
+    position: relative;
+    flex-shrink: 0;
+    align-self: flex-end;
+  }
+  .resize-handle::before {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 13px;
+    height: 13px;
+    border-right: 2.5px solid #bbb;
+    border-bottom: 2.5px solid #bbb;
+    border-bottom-right-radius: 8px;
+  }
+
+  /* Empty state */
+  #empty-hint {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #444;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  /* ── FULL SCREEN EDITOR ─────────────────────────────────────────────────── */
+  #editor-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    background: #f5f5f0;
+    flex-direction: column;
+    display: none;
+  }
+  #editor-overlay.open { display: flex; }
+
+  #editor-topbar {
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    flex-shrink: 0;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  }
+
+  #editor-menubar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 8px 20px 6px;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 12px;
+    position: relative;
+  }
+
+  #editor-title-wrap {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  #editor-title-input {
+    font-family: 'Caveat', cursive;
+    font-size: 22px;
+    font-weight: 700;
+    color: #111;
+    border: none;
+    outline: none;
+    background: transparent;
+    text-align: center;
+    width: 320px;
+    pointer-events: all;
+  }
+  #editor-title-input::placeholder { color: #aaa; font-style: italic; font-weight: 400; }
+
+  #editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  #editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 16px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .ed-tool-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 4px 7px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #333;
+    font-family: 'DM Mono', monospace;
+    transition: all 0.12s;
+    min-width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .ed-tool-btn:hover { background: #f0f0f0; border-color: #ddd; }
+  .ed-tool-btn.active { background: #e0e0e0; border-color: #bbb; }
+
+  .ed-sep { width: 1px; height: 22px; background: #e0e0e0; margin: 0 4px; flex-shrink: 0; }
+
+  #ed-font-family {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 4px 6px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    outline: none;
+    height: 28px;
+    max-width: 110px;
+  }
+
+  #ed-size-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+    height: 28px;
+  }
+  .ed-size-step {
+    background: #f8f8f8;
+    border: none;
+    padding: 0 7px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #555;
+    height: 100%;
+    transition: background 0.1s;
+  }
+  .ed-size-step:hover { background: #ececec; }
+  #ed-font-size-num {
+    width: 38px;
+    border: none;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: #333;
+    outline: none;
+    padding: 0 2px;
+    height: 100%;
+    -moz-appearance: textfield;
+  }
+  #ed-font-size-num::-webkit-outer-spin-button,
+  #ed-font-size-num::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  #ed-heading {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 4px 6px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    outline: none;
+    height: 28px;
+    max-width: 110px;
+  }
+
+  .ed-color-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .ed-color-wrap:hover { background: #f0f0f0; border-color: #ddd; }
+  .ed-color-icon {
+    font-size: 14px;
+    font-weight: 700;
+    font-family: Georgia, serif;
+    pointer-events: none;
+    user-select: none;
+    color: #333;
+  }
+  .ed-color-wrap input[type="color"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+
+  #ed-save-pdf {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  #ed-save-pdf:hover { background: #333; }
+
+  #ed-close {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    background: transparent;
+    color: #666;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  #ed-close:hover { background: #f0f0f0; color: #333; }
+
+  #editor-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px 20px;
+    background: #f5f5f0;
+  }
+
+  #editor-page {
+    background: #fff;
+    width: 100%;
+    max-width: 760px;
+    min-height: calc(100vh - 200px);
+    margin: 0 auto;
+    padding: 60px 72px;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+    border-radius: 4px;
+  }
+
+  #editor-content {
+    min-height: 400px;
+    outline: none;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 1.8;
+    color: #222;
+    caret-color: #111;
+  }
+  #editor-content:empty::before {
+    content: attr(data-placeholder);
+    color: #bbb;
+    pointer-events: none;
+    font-style: italic;
+  }
+  #editor-content h1 { font-size: 2em; margin: 0.5em 0 0.3em; font-weight: 700; }
+  #editor-content h2 { font-size: 1.5em; margin: 0.5em 0 0.3em; font-weight: 700; }
+  #editor-content h3 { font-size: 1.2em; margin: 0.4em 0 0.2em; font-weight: 700; }
+  #editor-content pre { background: #f4f4f4; border-left: 3px solid #ccc; padding: 12px 16px; font-family: 'Courier New', monospace; font-size: 14px; border-radius: 4px; white-space: pre-wrap; }
+  #editor-content blockquote { border-left: 3px solid #aaa; margin: 8px 0; padding: 4px 16px; color: #666; font-style: italic; }
+  #editor-content ul, #editor-content ol { padding-left: 28px; }
+  #editor-content li { margin: 3px 0; }
+  #editor-content hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+  #editor-content a { color: #2563eb; text-decoration: underline; }
+  #editor-content table { border-collapse: collapse; width: 100%; max-width: 100%; margin: 12px 0; table-layout: fixed; word-wrap: break-word; }
+  #editor-content td, #editor-content th { border: 1px solid #ccc; padding: 8px 12px; min-width: 40px; vertical-align: top; overflow-wrap: break-word; word-break: break-word; }
+  #editor-content th { background: #f4f4f4; font-weight: 700; }
+  #editor-content tr:nth-child(even) td { background: #fafafa; }
+
+  /* Table picker */
+  #ed-table-wrap { position: relative; display: inline-flex; }
+  #ed-table-picker {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 9999;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  #ed-table-picker.open { display: flex; }
+  #ed-table-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 18px);
+    grid-template-rows: repeat(16, 14px);
+    gap: 2px;
+  }
+  .ed-table-cell {
+    width: 18px;
+    height: 14px;
+    border: 1px solid #ddd;
+    border-radius: 2px;
+    background: #f8f8f8;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .ed-table-cell.highlighted { background: #bfdbfe; border-color: #3b82f6; }
+  #ed-table-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #666;
+  }
+
+  @media print {
+    #editor-topbar, #toolbar, #canvas-wrap, #empty-hint { display: none !important; }
+    #editor-body { padding: 0; }
+    #editor-page { box-shadow: none; max-width: 100%; padding: 0; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="mobile-block" style="display:none;position:fixed;inset:0;background:#111;z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px;text-align:center;">
+  <div style="font-size:40px;">🕸️</div>
+  <div style="font-family:'Caveat',cursive;font-size:32px;color:#fff;font-weight:700;">Sticky Web</div>
+  <div style="font-family:'DM Mono',monospace;font-size:13px;color:#888;line-height:1.7;max-width:280px;">This app is designed for desktop.<br>Please visit on a computer for the full experience.</div>
+</div>
+
+<!-- FULL SCREEN EDITOR -->
+<div id="editor-overlay">
+  <div id="editor-topbar">
+    <div id="editor-menubar">
+      <div id="editor-title-wrap">
+        <input id="editor-title-input" placeholder="Title" spellcheck="true" />
+      </div>
+      <div id="editor-actions">
+        <button id="ed-save-pdf" title="Save as PDF">⬇ Save PDF</button>
+        <button id="ed-close" title="Close editor">✕ Close</button>
+      </div>
+    </div>
+    <div id="editor-toolbar">
+      <!-- Font family -->
+      <select id="ed-font-family" title="Font">
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Arial', sans-serif">Arial</option>
+        <option value="'Times New Roman', serif">Times New Roman</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+        <option value="'Caveat', cursive">Caveat</option>
+      </select>
+      <!-- Font size numeric -->
+      <div id="ed-size-wrap">
+        <button class="ed-size-step" id="ed-size-down">−</button>
+        <input id="ed-font-size-num" type="number" value="16" min="6" max="96" title="Font size" />
+        <button class="ed-size-step" id="ed-size-up">+</button>
+      </div>
+      <div class="ed-sep"></div>
+      <!-- Text style -->
+      <button class="ed-tool-btn" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+      <button class="ed-tool-btn" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+      <button class="ed-tool-btn" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+      <button class="ed-tool-btn" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+      <div class="ed-sep"></div>
+      <!-- Text color & highlight -->
+      <div class="ed-color-wrap" title="Text color">
+        <span class="ed-color-icon">A</span>
+        <input type="color" id="ed-text-color" value="#000000" title="Text color" />
+      </div>
+      <div class="ed-color-wrap" title="Highlight color">
+        <span class="ed-color-icon" style="display:inline-block;width:14px;height:14px;background:#ccc;border-radius:2px;"></span>
+        <input type="color" id="ed-highlight-color" value="#FFFF00" title="Highlight" />
+      </div>
+      <div class="ed-sep"></div>
+      <!-- Headings -->
+      <select id="ed-heading" title="Paragraph style">
+        <option value="">Paragraph</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+        <option value="h3">Heading 3</option>
+        <option value="pre">Code</option>
+        <option value="blockquote">Quote</option>
+      </select>
+      <div class="ed-sep"></div>
+      <!-- Lists -->
+      <button class="ed-tool-btn" data-cmd="insertUnorderedList" title="Bullet list">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><circle cx="2" cy="3.5" r="1.5"/><rect x="5" y="2.5" width="9" height="2" rx="1"/><circle cx="2" cy="7.5" r="1.5"/><rect x="5" y="6.5" width="9" height="2" rx="1"/><circle cx="2" cy="11.5" r="1.5"/><rect x="5" y="10.5" width="9" height="2" rx="1"/></svg>
+      </button>
+      <button class="ed-tool-btn" data-cmd="insertOrderedList" title="Numbered list">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><text x="0" y="5" font-size="5" font-family="monospace">1.</text><rect x="5" y="2.5" width="9" height="2" rx="1"/><text x="0" y="9.5" font-size="5" font-family="monospace">2.</text><rect x="5" y="6.5" width="9" height="2" rx="1"/><text x="0" y="14" font-size="5" font-family="monospace">3.</text><rect x="5" y="10.5" width="9" height="2" rx="1"/></svg>
+      </button>
+      <button class="ed-tool-btn" data-cmd="outdent" title="Decrease indent">⇤</button>
+      <button class="ed-tool-btn" data-cmd="indent" title="Increase indent">⇥</button>
+      <div class="ed-sep"></div>
+      <!-- Alignment -->
+      <button class="ed-tool-btn" data-cmd="justifyLeft" title="Align left">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><rect x="0" y="1" width="15" height="2" rx="1"/><rect x="0" y="5" width="10" height="2" rx="1"/><rect x="0" y="9" width="15" height="2" rx="1"/><rect x="0" y="13" width="8" height="2" rx="1"/></svg>
+      </button>
+      <button class="ed-tool-btn" data-cmd="justifyCenter" title="Align center">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><rect x="0" y="1" width="15" height="2" rx="1"/><rect x="2.5" y="5" width="10" height="2" rx="1"/><rect x="0" y="9" width="15" height="2" rx="1"/><rect x="3.5" y="13" width="8" height="2" rx="1"/></svg>
+      </button>
+      <button class="ed-tool-btn" data-cmd="justifyRight" title="Align right">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><rect x="0" y="1" width="15" height="2" rx="1"/><rect x="5" y="5" width="10" height="2" rx="1"/><rect x="0" y="9" width="15" height="2" rx="1"/><rect x="7" y="13" width="8" height="2" rx="1"/></svg>
+      </button>
+      <button class="ed-tool-btn" data-cmd="justifyFull" title="Justify">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><rect x="0" y="1" width="15" height="2" rx="1"/><rect x="0" y="5" width="15" height="2" rx="1"/><rect x="0" y="9" width="15" height="2" rx="1"/><rect x="0" y="13" width="15" height="2" rx="1"/></svg>
+      </button>
+      <div class="ed-sep"></div>
+      <!-- Undo/redo -->
+      <button class="ed-tool-btn" data-cmd="undo" title="Undo (Ctrl+Z)">↩</button>
+      <button class="ed-tool-btn" data-cmd="redo" title="Redo (Ctrl+Y)">↪</button>
+      <div class="ed-sep"></div>
+      <!-- Table -->
+      <div id="ed-table-wrap">
+        <button class="ed-tool-btn" id="ed-table-btn" title="Insert table">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor"><rect x="0" y="0" width="15" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="5" y1="0" x2="5" y2="15" stroke="currentColor" stroke-width="1"/><line x1="10" y1="0" x2="10" y2="15" stroke="currentColor" stroke-width="1"/><line x1="0" y1="5" x2="15" y2="5" stroke="currentColor" stroke-width="1"/><line x1="0" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="1"/></svg>
+        </button>
+        <div id="ed-table-picker">
+          <div id="ed-table-grid"></div>
+          <div id="ed-table-label">0 × 0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="editor-body">
+    <div id="editor-page">
+      <div id="editor-content" contenteditable="true" spellcheck="true" data-placeholder="Start writing…"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  if (window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    const el = document.getElementById('mobile-block');
+    el.style.display = 'flex';
+  }
+</script>
+
+<div id="toolbar">
+  <button class="tb-btn primary" id="btn-new">+ New Note</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-undo">↩ Undo</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-zoom-out">−</button>
+  <span id="zoom-display">100%</span>
+  <button class="tb-btn" id="btn-zoom-in">+</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-fit">Fit All</button>
+  <button class="tb-btn" id="btn-expand">Expand All</button>
+  <button class="tb-btn" id="btn-connect">Connect</button>
+  <button class="tb-btn" id="btn-clear">Clear All</button>
+</div>
+
+<div id="canvas-wrap">
+  <div id="canvas">
+    <svg id="svg-layer"></svg>
+  </div>
+</div>
+
+<div id="empty-hint">Click "+ New Note" to get started</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let notes = [];
+let edges = []; // {parentId, childId}
+let idCounter = 0;
+let zoom = 1;
+let panX = 0, panY = 0;
+let history = [];
+
+// ─── CANVAS PAN ──────────────────────────────────────────────────────────────
+const canvasWrap = document.getElementById('canvas-wrap');
+const canvas = document.getElementById('canvas');
+const svgLayer = document.getElementById('svg-layer');
+
+let isPanning = false, panStartX, panStartY, panOriginX, panOriginY;
+
+canvasWrap.addEventListener('mousedown', e => {
+  if (e.target === canvasWrap || e.target === canvas || e.target === svgLayer) {
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    canvasWrap.style.cursor = 'grabbing';
+  }
+});
+window.addEventListener('mousemove', e => {
+  if (isPanning) {
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+    applyTransform();
+  }
+});
+window.addEventListener('mouseup', () => {
+  isPanning = false;
+  canvasWrap.style.cursor = 'default';
+});
+
+canvasWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  panX = mx - (mx - panX) * delta;
+  panY = my - (my - panY) * delta;
+  zoom = Math.min(2, Math.max(0.2, zoom * delta));
+  applyTransform();
+}, { passive: false });
+
+function applyTransform() {
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  document.getElementById('zoom-display').textContent = Math.round(zoom * 100) + '%';
+}
+
+// ─── NOTE FACTORY ─────────────────────────────────────────────────────────────
+function createNote({ x = 400, y = 300, title = '', width = 270, height = 200 } = {}) {
+  const id = ++idCounter;
+  const note = { id, x, y, title, content: '', width, height, minimized: false };
+  notes.push(note);
+  renderNote(note);
+  updateEmptyHint();
+  return note;
+}
+
+function renderNote(note) {
+  let el = document.getElementById('note-' + note.id);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'note';
+    el.id = 'note-' + note.id;
+    canvas.appendChild(el);
+  }
+
+  el.style.left = note.x + 'px';
+  el.style.top = note.y + 'px';
+  el.style.width = note.width + 'px';
+  if (!note.minimized) el.style.height = note.height + 'px';
+  else el.style.height = '';
+  el.classList.toggle('minimized', note.minimized);
+
+  el.innerHTML = `
+    <div class="note-header">
+      <div class="drag-handle" data-id="${note.id}">
+        ${Array(9).fill('<span></span>').join('')}
+      </div>
+      <input class="note-title ${note.title ? '' : 'is-placeholder'}" value="${escHtml(note.title)}" data-id="${note.id}" placeholder="Title" />
+      <button class="note-btn expand-editor-btn" data-id="${note.id}" title="Open full editor">⤢</button>
+      <button class="note-btn min-btn" data-id="${note.id}" title="${note.minimized ? 'Expand' : 'Minimize'}">${note.minimized ? '+' : '−'}</button>
+      <button class="note-btn close-btn" data-id="${note.id}" title="Delete">✕</button>
+    </div>
+    <div class="note-body">
+      <div class="note-lines">
+        <textarea class="note-textarea" data-id="${note.id}" placeholder="type something…">${escHtml(note.content)}</textarea>
+      </div>
+      <div class="note-footer">
+        <div class="note-actions">
+          <button class="arrow-btn" data-id="${note.id}" data-action="parent" title="Add parent note"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6.5" y1="11" x2="6.5" y2="2"/><polyline points="2.5,6 6.5,2 10.5,6"/></svg></button>
+          <button class="arrow-btn" data-id="${note.id}" data-action="child" title="Add child note"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6.5" y1="2" x2="6.5" y2="11"/><polyline points="2.5,7 6.5,11 10.5,7"/></svg></button>
+        </div>
+        <div class="resize-handle" data-id="${note.id}"></div>
+      </div>
+    </div>
+  `;
+
+  bindNoteEvents(el, note);
+  drawEdges();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── NOTE EVENTS ──────────────────────────────────────────────────────────────
+function bindNoteEvents(el, note) {
+  // Drag via handle
+  const handle = el.querySelector('.drag-handle');
+  handle.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const ox = note.x, oy = note.y;
+    const onMove = ev => {
+      note.x = ox + (ev.clientX - startX) / zoom;
+      note.y = oy + (ev.clientY - startY) / zoom;
+      el.style.left = note.x + 'px';
+      el.style.top = note.y + 'px';
+      drawEdges();
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  // Resize handle
+  const resizeHandle = el.querySelector('.resize-handle');
+  resizeHandle.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const ow = note.width, oh = note.height;
+    const onMove = ev => {
+      note.width = Math.max(180, ow + (ev.clientX - startX) / zoom);
+      note.height = Math.max(140, oh + (ev.clientY - startY) / zoom);
+      el.style.width = note.width + 'px';
+      el.style.height = note.height + 'px';
+      const ta = el.querySelector('.note-textarea');
+      if (ta) ta.style.height = (note.height - 100) + 'px';
+      drawEdges();
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  // Title edit
+  const titleInput = el.querySelector('.note-title');
+  titleInput.addEventListener('input', () => {
+    note.title = titleInput.value;
+    titleInput.classList.toggle('is-placeholder', !titleInput.value);
+  });
+  titleInput.addEventListener('mousedown', e => e.stopPropagation());
+
+  // Textarea
+  const textarea = el.querySelector('.note-textarea');
+  textarea.addEventListener('input', () => { note.content = textarea.value; });
+  textarea.addEventListener('mousedown', e => e.stopPropagation());
+
+  // Minimize button
+  el.querySelector('.min-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    saveHistory();
+    toggleMinimize(note);
+  });
+
+  // Close button
+  el.querySelector('.close-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    saveHistory();
+    deleteNote(note.id);
+  });
+
+  // Expand editor button
+  el.querySelector('.expand-editor-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    openEditor(note);
+  });
+
+  // Arrow buttons
+  el.querySelectorAll('.arrow-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      saveHistory();
+      const action = btn.dataset.action;
+      if (action === 'child') addChild(note);
+      if (action === 'parent') addParent(note);
+    });
+  });
+}
+
+// ─── MINIMIZE LOGIC ──────────────────────────────────────────────────────────
+function toggleMinimize(note) {
+  note.minimized = !note.minimized;
+  const el = document.getElementById('note-' + note.id);
+  if (!el) return;
+
+  if (note.minimized) {
+    el.classList.add('minimized');
+    el.style.height = '';
+    el.querySelector('.min-btn').textContent = '+';
+    el.querySelector('.min-btn').title = 'Expand';
+    // If sole parent of a child, completely hide the child
+    getChildren(note.id).forEach(childId => {
+      const parents = getParents(childId);
+      if (parents.length === 1) {
+        setNoteHidden(childId, true);
+      }
+    });
+  } else {
+    el.classList.remove('minimized');
+    el.style.height = note.height + 'px';
+    el.querySelector('.min-btn').textContent = '−';
+    el.querySelector('.min-btn').title = 'Minimize';
+    // Restore hidden children whose all parents are now visible/expanded
+    getChildren(note.id).forEach(childId => {
+      const anyParentMinimized = getParents(childId).some(pid => {
+        const p = notes.find(n => n.id === pid);
+        return p && p.minimized;
+      });
+      if (!anyParentMinimized) setNoteHidden(childId, false);
+    });
+  }
+  drawEdges();
+}
+
+function setNoteHidden(noteId, hide) {
+  const note = notes.find(n => n.id === noteId);
+  const el = document.getElementById('note-' + noteId);
+  if (!note || !el) return;
+  note.hidden = hide;
+  el.classList.toggle('hidden', hide);
+  // Cascade to children
+  getChildren(noteId).forEach(childId => {
+    if (hide) {
+      setNoteHidden(childId, true);
+    } else {
+      const anyParentHidden = getParents(childId).some(pid => {
+        const p = notes.find(n => n.id === pid);
+        return p && (p.hidden || p.minimized);
+      });
+      if (!anyParentHidden) setNoteHidden(childId, false);
+    }
+  });
+}
+
+function expandAll() {
+  notes.forEach(note => {
+    note.minimized = false;
+    note.hidden = false;
+    const el = document.getElementById('note-' + note.id);
+    if (el) {
+      el.classList.remove('minimized', 'hidden');
+      el.style.height = note.height + 'px';
+      const minBtn = el.querySelector('.min-btn');
+      if (minBtn) { minBtn.textContent = '−'; minBtn.title = 'Minimize'; }
+    }
+  });
+  drawEdges();
+}
+
+function getChildren(noteId) {
+  return edges.filter(e => e.parentId === noteId).map(e => e.childId);
+}
+function getParents(noteId) {
+  return edges.filter(e => e.childId === noteId).map(e => e.parentId);
+}
+
+// ─── ADD PARENT / CHILD ──────────────────────────────────────────────────────
+function addChild(parentNote) {
+  const child = createNote({
+    x: parentNote.x + 40,
+    y: parentNote.y + parentNote.height + 80,
+  });
+  edges.push({ parentId: parentNote.id, childId: child.id });
+  drawEdges();
+}
+
+function addParent(childNote) {
+  const parent = createNote({
+    x: childNote.x + 40,
+    y: childNote.y - 260,
+  });
+  edges.push({ parentId: parent.id, childId: childNote.id });
+  drawEdges();
+}
+
+// ─── DELETE ──────────────────────────────────────────────────────────────────
+function deleteNote(id) {
+  notes = notes.filter(n => n.id !== id);
+  edges = edges.filter(e => e.parentId !== id && e.childId !== id);
+  const el = document.getElementById('note-' + id);
+  if (el) el.remove();
+  drawEdges();
+  updateEmptyHint();
+}
+
+// ─── DRAW EDGES ──────────────────────────────────────────────────────────────
+function drawEdges() {
+  svgLayer.innerHTML = '';
+  edges.forEach(({ parentId, childId }) => {
+    const pNote = notes.find(n => n.id === parentId);
+    const cNote = notes.find(n => n.id === childId);
+    if (!pNote || !cNote) return;
+    if (pNote.hidden || cNote.hidden) return;
+
+    const px = pNote.x + pNote.width / 2;
+    const py = pNote.minimized
+      ? pNote.y + 42
+      : pNote.y + pNote.height;
+    const cx = cNote.x + cNote.width / 2;
+    const cy = cNote.y;
+
+    const midY = (py + cy) / 2;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'connection-line');
+    path.setAttribute('d', `M ${px} ${py} C ${px} ${midY}, ${cx} ${midY}, ${cx} ${cy}`);
+    svgLayer.appendChild(path);
+  });
+}
+
+// ─── CONNECT MODE ────────────────────────────────────────────────────────────
+let connectMode = false;
+let connectSource = null;
+let draftPath = null;
+
+function setConnectMode(on) {
+  connectMode = on;
+  document.body.classList.toggle('connect-mode', on);
+  document.getElementById('btn-connect').classList.toggle('active', on);
+}
+
+document.getElementById('btn-connect').addEventListener('click', () => {
+  setConnectMode(!connectMode);
+});
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && connectMode) setConnectMode(false);
+});
+
+// During connect mode, intercept mousedown on notes
+canvas.addEventListener('mousedown', e => {
+  if (!connectMode) return;
+  const noteEl = e.target.closest('.note');
+  if (!noteEl) return;
+  e.stopPropagation();
+  e.preventDefault();
+
+  const sourceId = parseInt(noteEl.id.replace('note-', ''));
+  const sourceNote = notes.find(n => n.id === sourceId);
+  if (!sourceNote) return;
+
+  connectSource = sourceNote;
+  noteEl.classList.add('connect-source');
+
+  // Create draft SVG path
+  draftPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  draftPath.setAttribute('class', 'draft-line');
+  svgLayer.appendChild(draftPath);
+
+  const onMove = ev => {
+    if (!connectSource || !draftPath) return;
+    const rect = canvasWrap.getBoundingClientRect();
+    const mx = (ev.clientX - rect.left - panX) / zoom;
+    const my = (ev.clientY - rect.top - panY) / zoom;
+    const px = connectSource.x + connectSource.width / 2;
+    const py = connectSource.minimized
+      ? connectSource.y + 42
+      : connectSource.y + connectSource.height;
+    const midY = (py + my) / 2;
+    draftPath.setAttribute('d', `M ${px} ${py} C ${px} ${midY}, ${mx} ${midY}, ${mx} ${my}`);
+  };
+
+  const onUp = ev => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+
+    // Remove draft line
+    if (draftPath) { draftPath.remove(); draftPath = null; }
+    if (connectSource) {
+      document.getElementById('note-' + connectSource.id)?.classList.remove('connect-source');
+    }
+
+    // Find target note under cursor
+    const rect = canvasWrap.getBoundingClientRect();
+    const ex = ev.clientX - rect.left;
+    const ey = ev.clientY - rect.top;
+    const target = document.elementFromPoint(ex, ey)?.closest('.note');
+    if (target) {
+      const targetId = parseInt(target.id.replace('note-', ''));
+      if (targetId !== connectSource.id) {
+        // Avoid duplicate edge
+        const already = edges.some(e => e.parentId === connectSource.id && e.childId === targetId);
+        if (!already) {
+          saveHistory();
+          edges.push({ parentId: connectSource.id, childId: targetId });
+          drawEdges();
+        }
+      }
+    }
+    connectSource = null;
+  };
+
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}, true); // capture phase so it fires before drag handle
+
+// ─── HISTORY ─────────────────────────────────────────────────────────────────
+function saveHistory() {
+  history.push(JSON.stringify({ notes: notes.map(n => ({...n})), edges: [...edges], idCounter }));
+  if (history.length > 50) history.shift();
+}
+
+function undo() {
+  if (!history.length) return;
+  const state = JSON.parse(history.pop());
+  idCounter = state.idCounter;
+  edges = state.edges;
+  // Remove all note elements
+  notes.forEach(n => {
+    const el = document.getElementById('note-' + n.id);
+    if (el) el.remove();
+  });
+  notes = state.notes;
+  notes.forEach(n => renderNote(n));
+  drawEdges();
+  updateEmptyHint();
+}
+
+// ─── TOOLBAR BUTTONS ─────────────────────────────────────────────────────────
+document.getElementById('btn-new').addEventListener('click', () => {
+  saveHistory();
+  const cx = (canvasWrap.clientWidth / 2 - panX) / zoom - 135;
+  const cy = (canvasWrap.clientHeight / 2 - panY) / zoom - 100;
+  createNote({ x: cx, y: cy });
+});
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+
+document.getElementById('btn-zoom-in').addEventListener('click', () => {
+  zoom = Math.min(2, zoom * 1.2);
+  applyTransform();
+});
+document.getElementById('btn-zoom-out').addEventListener('click', () => {
+  zoom = Math.max(0.2, zoom / 1.2);
+  applyTransform();
+});
+
+document.getElementById('btn-fit').addEventListener('click', () => {
+  if (!notes.length) return;
+
+  const visibleNotes = notes.filter(n => !n.hidden);
+  if (!visibleNotes.length) return;
+
+  const availW = canvasWrap.clientWidth;
+  const availH = canvasWrap.clientHeight;
+
+  // Fixed percentage padding: 18% top and bottom, 8% sides
+  const padTopPct = 0.18;
+  const padBotPct = 0.09;
+  const padSidePct = 0.08;
+
+  const notesMinX = Math.min(...visibleNotes.map(n => n.x));
+  const notesMinY = Math.min(...visibleNotes.map(n => n.y));
+  const notesMaxX = Math.max(...visibleNotes.map(n => n.x + n.width));
+  const notesMaxY = Math.max(...visibleNotes.map(n => n.y + n.height));
+  const notesW = notesMaxX - notesMinX;
+  const notesH = notesMaxY - notesMinY;
+
+  // Available space after removing percentage padding
+  const usableW = availW * (1 - padSidePct * 2);
+  const usableH = availH * (1 - padTopPct - padBotPct);
+
+  zoom = Math.min(2, Math.min(usableW / notesW, usableH / notesH));
+
+  // Center notes in the usable area
+  const scaledW = notesW * zoom;
+  const scaledH = notesH * zoom;
+  panX = availW * padSidePct + (usableW - scaledW) / 2 - notesMinX * zoom;
+  panY = availH * padTopPct + (usableH - scaledH) / 2 - notesMinY * zoom;
+
+  applyTransform();
+});
+
+document.getElementById('btn-expand').addEventListener('click', expandAll);
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!notes.length) return;
+  if (!confirm('Clear all notes?')) return;
+  saveHistory();
+  notes.forEach(n => {
+    const el = document.getElementById('note-' + n.id);
+    if (el) el.remove();
+  });
+  notes = []; edges = [];
+  svgLayer.innerHTML = '';
+  updateEmptyHint();
+});
+
+// ─── EMPTY HINT ───────────────────────────────────────────────────────────────
+function updateEmptyHint() {
+  document.getElementById('empty-hint').style.opacity = notes.length ? '0' : '1';
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+(function init() {
+  const noteH = 200;
+  const noteW = 270;
+  const toolbarBottom = 70; // approx px
+  const gap = 80; // gap between parent bottom and children top
+  const hGap = 220; // horizontal offset for children
+
+  // Total layout height: noteH + gap + noteH = 480
+  const totalH = noteH + gap + noteH;
+  const availH = window.innerHeight - toolbarBottom;
+  const topMargin = (availH - totalH) / 2;
+  const startY = toolbarBottom + topMargin;
+
+  const cx = window.innerWidth / 2 - noteW / 2;
+
+  const parent = createNote({ x: cx, y: startY });
+  const child1 = createNote({ x: cx - hGap, y: startY + noteH + gap });
+  const child2 = createNote({ x: cx + hGap, y: startY + noteH + gap });
+  edges.push({ parentId: parent.id, childId: child1.id });
+  edges.push({ parentId: parent.id, childId: child2.id });
+  drawEdges();
+  updateEmptyHint();
+})();
+
+// ─── FULL SCREEN EDITOR ──────────────────────────────────────────────────────
+let editorNote = null;
+const editorOverlay = document.getElementById('editor-overlay');
+const editorTitleInput = document.getElementById('editor-title-input');
+const editorContent = document.getElementById('editor-content');
+
+function openEditor(note) {
+  editorNote = note;
+  editorTitleInput.value = note.title || '';
+  editorContent.innerHTML = note.editorContent || '';
+  editorOverlay.classList.add('open');
+  setTimeout(() => editorContent.focus(), 50);
+  updateEditorToolbarState();
+}
+
+function closeEditor() {
+  if (editorNote) {
+    editorNote.title = editorTitleInput.value;
+    editorNote.editorContent = editorContent.innerHTML;
+    editorNote.content = editorContent.innerText.trim();
+    renderNote(editorNote);
+  }
+  editorOverlay.classList.remove('open');
+  editorNote = null;
+}
+
+document.getElementById('ed-close').addEventListener('click', closeEditor);
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && editorOverlay.classList.contains('open')) closeEditor();
+});
+
+// ── Format buttons ──
+document.querySelectorAll('.ed-tool-btn[data-cmd]').forEach(btn => {
+  btn.addEventListener('mousedown', e => {
+    e.preventDefault(); // keep focus in editor
+    document.execCommand(btn.dataset.cmd, false, null);
+    updateEditorToolbarState();
+  });
+});
+
+// ── Font family ──
+document.getElementById('ed-font-family').addEventListener('change', function() {
+  document.execCommand('fontName', false, this.value);
+  editorContent.focus();
+});
+
+// ── Font size (numeric) ──
+const fontSizeInput = document.getElementById('ed-font-size-num');
+
+function applyFontSize(px) {
+  px = Math.min(96, Math.max(6, parseInt(px) || 16));
+  fontSizeInput.value = px;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = px + 'px';
+    try { range.surroundContents(span); } catch(e) {
+      document.execCommand('fontSize', false, '3');
+      // fallback: wrap with span via insertNode
+    }
+  } else {
+    document.execCommand('fontSize', false, '3');
+    const fonts = editorContent.querySelectorAll('font[size="3"]');
+    fonts.forEach(f => { f.style.fontSize = px + 'px'; f.removeAttribute('size'); });
+  }
+  editorContent.focus();
+}
+
+fontSizeInput.addEventListener('change', () => applyFontSize(fontSizeInput.value));
+fontSizeInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyFontSize(fontSizeInput.value); });
+document.getElementById('ed-size-up').addEventListener('mousedown', e => {
+  e.preventDefault();
+  applyFontSize(parseInt(fontSizeInput.value) + 1);
+});
+document.getElementById('ed-size-down').addEventListener('mousedown', e => {
+  e.preventDefault();
+  applyFontSize(parseInt(fontSizeInput.value) - 1);
+});
+
+// ── Heading / paragraph style ──
+document.getElementById('ed-heading').addEventListener('change', function() {
+  const val = this.value;
+  if (val === '') {
+    document.execCommand('formatBlock', false, 'p');
+  } else {
+    document.execCommand('formatBlock', false, val);
+  }
+  this.value = '';
+  editorContent.focus();
+});
+
+// ── Text color ──
+document.getElementById('ed-text-color').addEventListener('input', function() {
+  document.execCommand('foreColor', false, this.value);
+  editorContent.focus();
+});
+
+// ── Highlight color ──
+document.getElementById('ed-highlight-color').addEventListener('input', function() {
+  document.execCommand('hiliteColor', false, this.value);
+  editorContent.focus();
+});
+
+// ── Update active states on toolbar ──
+function updateEditorToolbarState() {
+  ['bold','italic','underline','strikeThrough','justifyLeft','justifyCenter','justifyRight','justifyFull',
+   'insertUnorderedList','insertOrderedList'].forEach(cmd => {
+    const btn = document.querySelector(`.ed-tool-btn[data-cmd="${cmd}"]`);
+    if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
+  });
+}
+
+editorContent.addEventListener('keyup', updateEditorToolbarState);
+editorContent.addEventListener('mouseup', updateEditorToolbarState);
+
+// ── Sync title live ──
+editorTitleInput.addEventListener('input', () => {
+  if (editorNote) {
+    editorNote.title = editorTitleInput.value;
+    const noteEl = document.getElementById('note-' + editorNote.id);
+    if (noteEl) {
+      const titleEl = noteEl.querySelector('.note-title');
+      if (titleEl) {
+        titleEl.value = editorNote.title;
+        titleEl.classList.toggle('is-placeholder', !editorNote.title);
+      }
+    }
+  }
+});
+
+// ── Save as PDF ──
+document.getElementById('ed-save-pdf').addEventListener('click', async () => {
+  if (!editorNote) return;
+  const title = editorTitleInput.value.trim() || 'document';
+
+  const btn = document.getElementById('ed-save-pdf');
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+
+  try {
+    // Clone content into a hidden styled container for capture
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: fixed; left: -9999px; top: 0;
+      width: 760px; padding: 48px 60px;
+      background: #fff; color: #222;
+      font-family: Georgia, serif; font-size: 15px; line-height: 1.8;
+      box-sizing: border-box;
+    `;
+    container.innerHTML = editorContent.innerHTML;
+
+    // Apply inline styles for print fidelity
+    const style = document.createElement('style');
+    style.textContent = `
+      h1,h2,h3 { font-weight:700; margin:0.6em 0 0.3em; }
+      h1{font-size:2em} h2{font-size:1.5em} h3{font-size:1.2em}
+      p{margin:0 0 0.6em}
+      pre{background:#f4f4f4;border-left:3px solid #ccc;padding:10px 14px;font-family:monospace;font-size:13px;white-space:pre-wrap;margin:8px 0}
+      blockquote{border-left:3px solid #aaa;margin:8px 0;padding:4px 16px;color:#666;font-style:italic}
+      ul,ol{padding-left:28px;margin:4px 0 8px} li{margin:2px 0}
+      table{border-collapse:collapse;width:100%;table-layout:fixed;margin:10px 0}
+      td,th{border:1px solid #ccc;padding:6px 10px;word-break:break-word}
+      a{color:#2563eb} hr{border:none;border-top:1px solid #ddd;margin:16px 0}
+    `;
+    container.appendChild(style);
+    document.body.appendChild(container);
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width: 760,
+      windowWidth: 760
+    });
+
+    document.body.removeChild(container);
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'px', format: 'a4', orientation: 'portrait' });
+
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = (canvas.height * pageW) / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+
+    let y = 0;
+    while (y < imgH) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, -y, imgW, imgH);
+      y += pageH;
+    }
+
+    pdf.save(`${title}.pdf`);
+  } catch (err) {
+    alert('PDF generation failed: ' + err.message);
+  } finally {
+    btn.textContent = '⬇ Save PDF';
+    btn.disabled = false;
+  }
+});
+
+// ── Table context menu (right-click to add/remove rows & cols) ──
+const tableMenu = document.createElement('div');
+tableMenu.id = 'table-ctx-menu';
+tableMenu.style.cssText = `
+  display:none; position:fixed; background:#fff; border:1px solid #ddd;
+  border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.12);
+  z-index:99999; padding:4px 0; min-width:170px; font-family:'DM Mono',monospace; font-size:12px;
+`;
+document.body.appendChild(tableMenu);
+
+function tableMenuItem(label, action) {
+  const item = document.createElement('div');
+  item.textContent = label;
+  item.style.cssText = 'padding:7px 16px; cursor:pointer; color:#333; transition:background 0.1s;';
+  item.addEventListener('mouseenter', () => item.style.background = '#f5f5f5');
+  item.addEventListener('mouseleave', () => item.style.background = '');
+  item.addEventListener('mousedown', e => { e.preventDefault(); action(); tableMenu.style.display = 'none'; });
+  return item;
+}
+
+let ctxCell = null;
+
+editorContent.addEventListener('contextmenu', e => {
+  const td = e.target.closest('td, th');
+  if (!td) return;
+  e.preventDefault();
+  ctxCell = td;
+  const table = td.closest('table');
+  const row = td.closest('tr');
+
+  tableMenu.innerHTML = '';
+
+  // Add row above
+  tableMenu.appendChild(tableMenuItem('Insert row above', () => {
+    const newRow = row.cloneNode(true);
+    newRow.querySelectorAll('td,th').forEach(c => c.innerHTML = '&nbsp;');
+    row.parentNode.insertBefore(newRow, row);
+  }));
+  // Add row below
+  tableMenu.appendChild(tableMenuItem('Insert row below', () => {
+    const newRow = row.cloneNode(true);
+    newRow.querySelectorAll('td,th').forEach(c => c.innerHTML = '&nbsp;');
+    row.parentNode.insertBefore(newRow, row.nextSibling);
+  }));
+  // Delete row
+  tableMenu.appendChild(tableMenuItem('Delete row', () => {
+    if (table.rows.length > 1) row.remove();
+    else table.remove();
+  }));
+
+  // Separator
+  const sep = document.createElement('div');
+  sep.style.cssText = 'height:1px;background:#eee;margin:4px 0;';
+  tableMenu.appendChild(sep);
+
+  // Find col index
+  const colIdx = Array.from(row.cells).indexOf(td);
+  // Add col left
+  tableMenu.appendChild(tableMenuItem('Insert column left', () => {
+    Array.from(table.rows).forEach(r => {
+      const newCell = r.cells[colIdx] ? r.cells[colIdx].cloneNode(false) : document.createElement('td');
+      newCell.innerHTML = '&nbsp;';
+      r.insertBefore(newCell, r.cells[colIdx]);
+    });
+  }));
+  // Add col right
+  tableMenu.appendChild(tableMenuItem('Insert column right', () => {
+    Array.from(table.rows).forEach(r => {
+      const newCell = r.cells[colIdx] ? r.cells[colIdx].cloneNode(false) : document.createElement('td');
+      newCell.innerHTML = '&nbsp;';
+      const ref = r.cells[colIdx + 1] || null;
+      r.insertBefore(newCell, ref);
+    });
+  }));
+  // Delete col
+  tableMenu.appendChild(tableMenuItem('Delete column', () => {
+    const colCount = table.rows[0] ? table.rows[0].cells.length : 0;
+    if (colCount <= 1) { table.remove(); return; }
+    Array.from(table.rows).forEach(r => { if (r.cells[colIdx]) r.cells[colIdx].remove(); });
+  }));
+
+  // Separator
+  const sep2 = document.createElement('div');
+  sep2.style.cssText = 'height:1px;background:#eee;margin:4px 0;';
+  tableMenu.appendChild(sep2);
+
+  // Delete whole table
+  tableMenu.appendChild(tableMenuItem('Delete table', () => table.remove()));
+
+  tableMenu.style.display = 'block';
+  tableMenu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+  tableMenu.style.top = Math.min(e.clientY, window.innerHeight - 260) + 'px';
+});
+
+document.addEventListener('mousedown', e => {
+  if (!tableMenu.contains(e.target)) tableMenu.style.display = 'none';
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') tableMenu.style.display = 'none';
+});
+// ── Table picker ──
+(function() {
+  const COLS = 8, ROWS = 16;
+  const grid = document.getElementById('ed-table-grid');
+  const picker = document.getElementById('ed-table-picker');
+  const label = document.getElementById('ed-table-label');
+  const btn = document.getElementById('ed-table-btn');
+
+  // Build grid cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'ed-table-cell';
+      cell.dataset.row = r + 1;
+      cell.dataset.col = c + 1;
+      grid.appendChild(cell);
+    }
+  }
+
+  btn.addEventListener('mousedown', e => {
+    e.preventDefault();
+    picker.classList.toggle('open');
+  });
+
+  grid.addEventListener('mousemove', e => {
+    const cell = e.target.closest('.ed-table-cell');
+    if (!cell) return;
+    const r = parseInt(cell.dataset.row);
+    const c = parseInt(cell.dataset.col);
+    label.textContent = `${r} × ${c}`;
+    grid.querySelectorAll('.ed-table-cell').forEach(tc => {
+      tc.classList.toggle('highlighted', parseInt(tc.dataset.row) <= r && parseInt(tc.dataset.col) <= c);
+    });
+  });
+
+  grid.addEventListener('mouseleave', () => {
+    grid.querySelectorAll('.ed-table-cell').forEach(tc => tc.classList.remove('highlighted'));
+    label.textContent = '0 × 0';
+  });
+
+  grid.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const cell = e.target.closest('.ed-table-cell');
+    if (!cell) return;
+    const rows = parseInt(cell.dataset.row);
+    const cols = parseInt(cell.dataset.col);
+    insertTable(rows, cols);
+    picker.classList.remove('open');
+  });
+
+  // Close picker when clicking outside
+  document.addEventListener('mousedown', e => {
+    if (!document.getElementById('ed-table-wrap').contains(e.target)) {
+      picker.classList.remove('open');
+    }
+  });
+
+  function insertTable(rows, cols) {
+    let html = '<table><tbody>';
+    for (let r = 0; r < rows; r++) {
+      html += '<tr>';
+      for (let c = 0; c < cols; c++) html += '<td>&nbsp;</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table><p><br></p>';
+    document.execCommand('insertHTML', false, html);
+    editorContent.focus();
+  }
+})();
+
+
+</script>
+</body>
+</html>

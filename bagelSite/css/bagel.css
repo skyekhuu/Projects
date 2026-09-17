@@ -1,0 +1,306 @@
+@charset "utf-8";
+/* CSS Document */
+
+body {
+  font-family: Verdana, "sans-serif";
+  background-size: 100%;
+  background-repeat: no-repeat;
+}
+
+.home, .dough, .toppings, .recipe, .contact, .credits {
+	background-image: url("../../Dreamweaver/Dreamweaver Lesson Files/lesson01/images/background.jpg");
+	background-repeat: repeat-y;
+}
+
+#logo {
+	border: none;
+	box-sizing: border-box;
+	width: 4rem;
+}
+
+#logo_anchor {
+	border: none;
+	box-shadow: none;
+}
+
+.logo {
+	padding: 0;
+	margin: 1.25rem 0 0 0;
+}
+
+nav ul {
+	padding: 0;
+  margin: 0 1rem;
+  list-style-type: none;
+  overflow: hidden;
+}
+
+nav ul li {
+  display: block;
+  padding: 1em;
+  float: left;
+}
+
+.nav_logo {
+  padding: 0;
+  margin: 0.5em 1em;
+}
+
+nav ul li a, .button a{
+  margin: 1em 0;
+  padding: .5em 1em;
+  border: 3px solid black;
+  border-radius: 4rem;
+  text-align: center;
+  text-decoration: none;
+  font-size: .75em;
+  font-weight: bolder;
+  letter-spacing: 0.25rem;
+}
+
+nav ul li a:link, .button a:link {
+  color: black;
+  border: 3px solid black;
+  box-shadow: 2px 2px;
+}
+
+nav ul li a:visited, .button a:visited {
+  color: black;
+  border: 3px solid black;
+}
+
+nav ul li a:focus, .button a:focus {
+  color: lightgrey;
+}
+
+nav ul li a:hover, .button a:hover {
+  color: black;
+  border: 3px solid black;
+  text-decoration: underline;
+	
+}
+
+nav ul li a:active, .button a:active {
+  border: 3px solid black;
+  box-shadow: none;
+}
+
+main {
+	margin: 0 10%;
+}
+
+h1 {
+  margin: 2rem 0 4rem 0;
+  text-align: center;
+  letter-spacing: 0.5rem;
+  font-size: 4rem;
+  color: black;
+}
+
+#main_bagel {
+  display: block;
+  margin-top: 5%;
+  margin-right: auto;
+  margin-bottom: 5%;
+  margin-left: auto;
+  width: 50%;
+  border: none;
+}
+
+p {
+  text-align: center;
+  font-size: 1.5rem;
+  line-height: 3rem;
+  color: black;
+}
+
+.intro {
+	margin: 2rem;
+	margin-top: 1rem;
+	margin-bottom: 9rem;
+	padding: 0 4rem;
+  	letter-spacing: 0.25rem;
+	line-height: 4rem;
+  	font-weight: bolder;
+}
+
+div.footer_left, div.footer_center, div.footer_right {
+  display: block;
+  width: 33.33%;
+  text-align: center;
+  float: left;
+  margin: 1rem auto;
+}
+
+footer {
+	margin-top: 6rem;
+	border: 2px solid black;
+	box-sizing: border-box;
+}
+
+/* Contact Page Styles */
+
+input[type=text], input[type=email], input[type=tel], textarea {
+  width: 100%;
+  padding: 12px 20px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 0.5em;
+  box-sizing: border-box;
+  font-size: 18px;
+  background-color: white;
+}
+
+textarea {
+  height: 9.25rem;
+  resize: none;
+  font-size: 20px;
+}
+
+input[type=submit] {
+  width: 100%;
+  background-color: white;
+  padding: 14px 20px;
+  margin: 8px 0;
+  border-radius: 2rem;
+  border: 2px solid white;
+  color: #959595;
+  font-weight: 600;
+}
+
+input[type=submit]:hover {
+  background-color: lightgrey;
+  border: 2px solid lightgrey;
+}
+
+form ol {
+  list-style-type: none;
+  margin-top: 4rem;
+  margin-right: 20%;
+  margin-bottom: 6.5rem;
+  margin-left: 20%;
+  border-radius: 1em;
+  padding: 2em;
+}
+
+img {
+	max-width: 100%;
+	height: auto;
+}
+
+.flexright, .flexleft {
+	display: flex;
+	align-items: center;
+	justify-content: space-around;
+}
+
+p.right {
+	order: 1;
+	flex-basis: 70%;
+}
+
+img.right {
+	order: 2;
+	flex-basis: 20%;
+	height: auto;
+}
+
+p.left {
+	order: 2;
+	flex-basis: 70%;
+}
+
+img.left {
+	order: 1;
+	flex-basis: 20%;
+	height: auto;
+}
+
+.recipenav {
+	display: flex;
+	align-items: center;
+	justify-content: space-around;
+	margin-left: 1rem;
+	margin-right: 1rem;
+}
+
+.recipenav p {
+	flex-basis: 30%;
+	border: 4px solid black;
+}
+
+.recipeimg1, .recipeimg2 {
+	display: block;
+	width: 90%;
+	margin: 2rem auto;
+	border: 4px solid black;
+}
+
+h2 {
+  margin: 4rem;
+  text-align: center;
+  letter-spacing: 0.5rem;
+  font-size: 2rem;
+  color: black;
+}
+
+iframe {
+	display: block;
+	margin: 0 auto;
+	border: 4px solid black;
+}
+
+p a:link {
+  color: black;
+  text-decoration: none;
+}
+
+p a:visited {
+  color: black;
+}
+
+p a:focus {
+  text-decoration: underline;
+}
+
+p a:hover {
+  	color: black;
+	text-decoration: underline;
+}
+
+img {
+	border: 4px solid black;
+}
+
+img.recipe {
+	display: block;
+	margin: 2rem auto;
+	width: 90%;
+}
+
+.doughimg {
+	filter: contrast(125%);
+}
+
+ol li, ul li {
+	font-size: 1.5rem;
+	line-height: 3rem;
+}
+
+ol {
+	padding: 4rem;
+}
+
+ul.credit {
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+p.credit {
+	margin-bottom: 6rem;
+}
+
+.button {
+	margin-bottom: 6rem;
+}
