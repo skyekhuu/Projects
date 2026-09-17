@@ -82,7 +82,7 @@ button#darkMode:active{
 .project a{
   text-align: right;
   text-underline-offset: 0.2rem;
-
+  color: white;
 }
 .project a:hover{
   text-decoration: underline;
